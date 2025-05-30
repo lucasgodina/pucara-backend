@@ -1,33 +1,38 @@
 import { DateTime } from 'luxon'
 import hash from '@adonisjs/core/services/hash'
-import { compose } from '@adonisjs/core/helpers'
-import { BaseModel, column } from '@adonisjs/lucid/orm'
-import { withAuthFinder } from '@adonisjs/auth/mixins/lucid'
+import { BaseModel, column, beforeSave } from '@adonisjs/lucid/orm'
 import { DbAccessTokensProvider } from '@adonisjs/auth/access_tokens'
 
-const AuthFinder = withAuthFinder(() => hash.use('scrypt'), {
-  uids: ['email'],
-  passwordColumnName: 'password',
-})
-
-export default class User extends compose(BaseModel, AuthFinder) {
+export default class User extends BaseModel {
   @column({ isPrimary: true })
   declare id: number
 
   @column()
-  declare fullName: string | null
+  declare username: string | null
 
   @column()
   declare email: string
 
   @column({ serializeAs: null })
-  declare password: string
+  declare passwordHash: string
+
+  @column()
+  declare role: 'Spectator' | 'User' | 'Editor' | 'Admin'
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
+
+  // Hook para hashear la contraseña antes de guardar el usuario
+  @beforeSave()
+  public static async hashPassword(user: User) {
+    // Verifica si el passwordHash ha cambiado
+    if (user.$dirty.passwordHash) {
+      user.passwordHash = await hash.make(user.passwordHash)
+    }
+  }
 
   static accessTokens = DbAccessTokensProvider.forModel(User)
 }
