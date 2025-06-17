@@ -1,0 +1,628 @@
+openapi: 3.1.0
+info:
+  title: API de Gestión de Equipos y Jugadores (MVP Pucará Esports)
+  description: API para que un Editor gestione equipos de juegos y sus jugadores asociados.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Entorno de desarrollo local
+  - url: https://api.tudominio.com/api/v1 # Placeholder para producción
+    description: Entorno de producción
+tags:
+  - name: Equipos
+    description: Operaciones relacionadas con la gestión de equipos.
+  - name: Jugadores
+    description: Operaciones relacionadas con la gestión de jugadores.
+paths:
+  /teams:
+    get:
+      summary: Obtener todos los equipos
+      description: Recupera una lista de todos los equipos registrados.
+      operationId: getAllTeams
+      tags:
+        - Equipos
+      responses:
+        '200':
+          description: Lista de equipos obtenida exitosamente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Team'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Crear un nuevo equipo
+      description: Permite añadir un nuevo equipo al sistema. Solo el 'name' es obligatorio.
+      operationId: createTeam
+      tags:
+        - Equipos
+      requestBody:
+        description: Objeto del equipo a crear.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamCreateInput'
+      responses:
+        '201':
+          description: Equipo creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '400':
+          description: Solicitud inválida (ej. 'name' faltante).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /teams/{team_id}:
+    parameters:
+      - $ref: '#/components/parameters/teamIdParam'
+    get:
+      summary: Obtener un equipo por ID (con sus jugadores)
+      description: Recupera los detalles de un equipo específico, incluyendo la lista de sus jugadores.
+      operationId: getTeamById
+      tags:
+        - Equipos
+      responses:
+        '200':
+          description: Detalles del equipo obtenidos exitosamente.
+          content:
+            application/json:
+              schema:
+                allOf: # Combina el esquema del equipo con una propiedad de jugadores
+                  - $ref: '#/components/schemas/Team'
+                  - type: object
+                    properties:
+                      players:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Player'
+                        description: Lista de jugadores que pertenecen a este equipo.
+        '404':
+          description: Equipo no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Actualizar parcialmente un equipo
+      description: Actualiza uno o más campos de un equipo existente.
+      operationId: updateTeam
+      tags:
+        - Equipos
+      requestBody:
+        description: Campos a actualizar del equipo.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeamUpdateInput'
+      responses:
+        '200':
+          description: Equipo actualizado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Team'
+        '400':
+          description: Solicitud inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Equipo no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Eliminar un equipo
+      description: Elimina un equipo. Permite elegir si los jugadores asociados se eliminan o se quedan como libres.
+      operationId: deleteTeam
+      tags:
+        - Equipos
+      parameters:
+        - name: deletePlayers
+          in: query
+          description: Si es 'true', los jugadores del equipo también serán eliminados. Si es 'false' (o no se especifica), los jugadores se convertirán en libres.
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Equipo y/o jugadores eliminados/liberados exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '404':
+          description: Equipo no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /players:
+    get:
+      summary: Obtener todos los jugadores
+      description: Recupera una lista de todos los jugadores, con opción de filtrar por equipo.
+      operationId: getAllPlayers
+      tags:
+        - Jugadores
+      parameters:
+        - name: teamId
+          in: query
+          description: Filtra jugadores por el ID del equipo al que pertenecen. Si se omite, devuelve todos los jugadores.
+          required: false
+          schema:
+            type: string
+            format: uuid
+            example: d290f1ee-6c54-4b01-90e6-d701748f0851
+        - name: isFreeAgent
+          in: query
+          description: Si es 'true', devuelve solo los jugadores sin equipo. Ignora 'teamId' si está presente.
+          required: false
+          schema:
+            type: boolean
+            example: true
+      responses:
+        '200':
+          description: Lista de jugadores obtenida exitosamente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Player'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Crear un nuevo jugador
+      description: Permite añadir un nuevo jugador. Puede asignarse a un equipo o ser un jugador libre.
+      operationId: createPlayer
+      tags:
+        - Jugadores
+      requestBody:
+        description: Objeto del jugador a crear.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerCreateInput'
+      responses:
+        '201':
+          description: Jugador creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '400':
+          description: Solicitud inválida (ej. 'name' faltante).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: El 'team_id' especificado no existe. El jugador se creará como libre.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error' # Podríamos devolver un mensaje de éxito con advertencia también
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /players/{player_id}:
+    parameters:
+      - $ref: '#/components/parameters/playerIdParam'
+    get:
+      summary: Obtener un jugador por ID
+      description: Recupera los detalles de un jugador específico.
+      operationId: getPlayerById
+      tags:
+        - Jugadores
+      responses:
+        '200':
+          description: Detalles del jugador obtenidos exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '404':
+          description: Jugador no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Actualizar parcialmente un jugador
+      description: Actualiza uno o más campos de un jugador existente, incluyendo su equipo.
+      operationId: updatePlayer
+      tags:
+        - Jugadores
+      requestBody:
+        description: Campos a actualizar del jugador. Para desasignar de un equipo, enviar team_id = null.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerUpdateInput'
+      responses:
+        '200':
+          description: Jugador actualizado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '400':
+          description: Solicitud inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Jugador no encontrado o el 'team_id' especificado no existe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Eliminar un jugador
+      description: Elimina un jugador específico.
+      operationId: deletePlayer
+      tags:
+        - Jugadores
+      responses:
+        '200':
+          description: Jugador eliminado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessage'
+        '404':
+          description: Jugador no encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Endpoint específico para asignar/reasignar jugador a equipo ---
+  # Podría ser parte del PATCH de /players/{player_id} como 'team_id',
+  # pero si quieres un endpoint específico para la acción "asignar", podría ser así:
+  /players/{player_id}/assign-team:
+    parameters:
+      - $ref: '#/components/parameters/playerIdParam'
+    patch: # O POST, dependiendo de si es idempotente. PATCH es más común para actualizar un recurso existente.
+      summary: Asignar o reasignar un jugador a un equipo
+      description: Asigna un jugador a un equipo específico, o lo libera si el team_id es nulo.
+      operationId: assignPlayerToTeam
+      tags:
+        - Jugadores
+      requestBody:
+        description: Objeto con el ID del equipo al que asignar el jugador.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                team_id:
+                  type: string
+                  format: uuid
+                  description: ID del equipo al que asignar el jugador. Enviar 'null' para liberar al jugador.
+                  nullable: true
+                  example: d290f1ee-6c54-4b01-90e6-d701748f0851
+              required:
+                - team_id # El campo team_id siempre debe estar presente, aunque su valor pueda ser null
+      responses:
+        '200':
+          description: Jugador asignado/liberado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '400':
+          description: Solicitud inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Jugador no encontrado o equipo no encontrado (si team_id no es nulo y el equipo no existe).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Error interno del servidor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    # --- Esquemas para Equipos ---
+    Team:
+      type: object
+      properties:
+        team_id:
+          type: string
+          format: uuid
+          description: ID único del equipo. Generado por el sistema.
+          readOnly: true # Indica que este campo no se envía en la creación/actualización
+          example: d290f1ee-6c54-4b01-90e6-d701748f0851
+        name:
+          type: string
+          description: Nombre del equipo (ej. nombre del juego al que pertenece).
+          example: League of Legends
+        description:
+          type: string
+          nullable: true # Puede ser nulo
+          description: Descripción del equipo.
+          example: Equipo competitivo de League of Legends.
+        achievements:
+          type: object # Objeto JSON para logros
+          description: Logros del equipo en formato competencia - puesto final.
+          additionalProperties:
+            type: string # Los valores del objeto son strings (ej. "Campeón")
+          nullable: true
+          example:
+            Torneo Clausura 2023: Campeón
+            Liga Regional 2024: 3er Puesto
+      required:
+        - name # Solo 'name' es obligatorio al crear
+    TeamCreateInput: # Esquema para la creación de equipos
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nombre del equipo (obligatorio).
+          example: League of Legends
+        description:
+          type: string
+          nullable: true
+          description: Descripción del equipo.
+          example: Equipo competitivo de League of Legends.
+        achievements:
+          type: object
+          description: Logros del equipo.
+          additionalProperties:
+            type: string
+          nullable: true
+          example:
+            Torneo Clausura 2023: Campeón
+      required:
+        - name
+    TeamUpdateInput: # Esquema para la actualización de equipos (PATCH)
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nombre del equipo.
+          example: League of Legends
+        description:
+          type: string
+          nullable: true
+          description: Descripción del equipo.
+          example: Equipo competitivo de League of Legends.
+        achievements:
+          type: object
+          description: Logros del equipo.
+          additionalProperties:
+            type: string
+          nullable: true
+          example:
+            Liga Regional 2024: 3er Puesto
+
+    # --- Esquemas para Jugadores ---
+    Player:
+      type: object
+      properties:
+        player_id:
+          type: string
+          format: uuid
+          description: ID único del jugador. Generado por el sistema.
+          readOnly: true
+          example: a1b2c3d4-e5f6-7890-1234-567890abcdef
+        team_id:
+          type: string
+          format: uuid
+          description: ID del equipo al que pertenece el jugador. Nulo si es jugador libre.
+          nullable: true # Puede ser nulo si el jugador no tiene equipo
+          example: d290f1ee-6c54-4b01-90e6-d701748f0851
+        name:
+          type: string
+          description: Nombre del jugador.
+          example: Faker
+        bio:
+          type: string
+          nullable: true
+          description: Biografía o descripción corta del jugador.
+          example: Mid-laner legendario con múltiples títulos mundiales.
+        stats:
+          type: object # Objeto JSON para estadísticas
+          description: Estadísticas del jugador en formato estadistica - valor.
+          additionalProperties:
+            type: string # Los valores pueden ser strings (ej. "200 KDA", "MVP")
+          nullable: true
+          example:
+            KDA: '5.5'
+            Role: 'Mid'
+            MostPlayedChampion: 'Ryze'
+        photo_url:
+          type: string
+          format: uri # Indica que es una URL
+          nullable: true
+          description: URL de la foto del jugador.
+          example: https://example.com/faker.jpg
+      required:
+        - name # Solo 'name' es obligatorio al crear
+    PlayerCreateInput: # Esquema para la creación de jugadores
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nombre del jugador (obligatorio).
+          example: Rookie
+        team_id:
+          type: string
+          format: uuid
+          description: ID opcional del equipo al que asignar el jugador.
+          nullable: true
+          example: d290f1ee-6c54-4b01-90e6-d701748f0851
+        bio:
+          type: string
+          nullable: true
+          description: Biografía del jugador.
+          example: Jugador joven y prometedor.
+        stats:
+          type: object
+          description: Estadísticas del jugador.
+          additionalProperties:
+            type: string
+          nullable: true
+          example:
+            KDA: '4.8'
+            Role: 'ADC'
+        photo_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL de la foto del jugador.
+          example: https://example.com/rookie.jpg
+      required:
+        - name
+    PlayerUpdateInput: # Esquema para la actualización de jugadores (PATCH)
+      type: object
+      properties:
+        name:
+          type: string
+          description: Nombre del jugador.
+          example: Rookie "The New King"
+        team_id:
+          type: string
+          format: uuid
+          description: ID del equipo al que asignar el jugador. Nulo para liberar.
+          nullable: true
+          example: d290f1ee-6c54-4b01-90e6-d701748f0851
+        bio:
+          type: string
+          nullable: true
+          description: Biografía del jugador.
+          example: Actualización de biografía.
+        stats:
+          type: object
+          description: Estadísticas del jugador.
+          additionalProperties:
+            type: string
+          nullable: true
+          example:
+            KDA: '5.1'
+            CreepScore: '250'
+        photo_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL de la foto del jugador.
+          example: https://example.com/rookie_updated.jpg
+
+    # --- Esquemas para Mensajes de Error/Éxito ---
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Descripción del error.
+          example: El equipo con ID 'xyz' no fue encontrado.
+        code:
+          type: string
+          description: Código interno del error.
+          example: NOT_FOUND
+    SuccessMessage:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Mensaje de éxito.
+          example: El jugador 'Faker' ha sido creado exitosamente.
+
+  # --- Parámetros reusables ---
+  parameters:
+    teamIdParam:
+      name: team_id
+      in: path
+      description: ID único del equipo.
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: d290f1ee-6c54-4b01-90e6-d701748f0851
+    playerIdParam:
+      name: player_id
+      in: path
+      description: ID único del jugador.
+      required: true
+      schema:
+        type: string
+        format: uuid
+        example: a1b2c3d4-e5f6-7890-1234-567890abcdef
